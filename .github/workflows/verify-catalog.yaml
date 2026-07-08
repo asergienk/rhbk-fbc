@@ -11,10 +11,10 @@ jobs:
   verify-catalog:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
 
       - name: Get utils
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           repository: ASzc/fbc-utils
           ref: main
