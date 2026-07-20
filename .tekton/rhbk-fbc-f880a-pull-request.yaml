@@ -175,6 +175,29 @@ spec:
       workspaces:
       - name: basic-auth
         workspace: git-auth
+    - name: fbc-inject-lifecycle
+      params:
+      - name: DOCKERFILE
+        value: $(params.dockerfile)
+      - name: CONTEXT
+        value: $(params.path-context)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).lifecycle
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      runAfter:
+      - clone-repository
+      taskRef:
+        params:
+        - name: url
+          value: https://github.com/asergienk/konflux-operator-tasks.git
+        - name: revision
+          value: use_build_context
+        - name: pathInRepo
+          value: task/fbc-inject-lifecycle-oci-ta/0.1/fbc-inject-lifecycle-oci-ta.yaml
+        resolver: git
     - name: run-opm-command
       params:
       - name: SOURCE_ARTIFACT
@@ -190,7 +213,7 @@ spec:
       - name: IDMS_PATH
         value: ""
       runAfter:
-      - clone-repository
+      - fbc-inject-lifecycle
       taskRef:
         params:
         - name: name
