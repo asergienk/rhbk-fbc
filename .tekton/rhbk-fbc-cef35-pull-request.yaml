@@ -2,144 +2,140 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   annotations:
-    build.appstudio.openshift.io/repo: https://github.com/asergienk/rhbk-fbc?rev={{revision}}
+    build.appstudio.openshift.io/repo: https://github.com/rhbk/rhbk-fbc?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
-      == "main" && ( "catalog/v4.22/***".pathChanged() || ".tekton/rhbk-fbc-cef35-pull-request.yaml".pathChanged()
-      )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "main" && ( "catalog/v4.22/***".pathChanged() || ".tekton/rhbk-fbc-component-v4-22-pull-request.yaml".pathChanged() )
+  creationTimestamp:
   labels:
-    appstudio.openshift.io/application: rhbk-fbc
-    appstudio.openshift.io/component: rhbk-fbc-cef35
+    appstudio.openshift.io/application: rhbk-fbc-v4-22
+    appstudio.openshift.io/component: rhbk-fbc-component-v4-22
     pipelines.appstudio.openshift.io/type: build
-  name: rhbk-fbc-cef35-on-pull-request
-  namespace: asergien-tenant
+  name: rhbk-fbc-component-v4-22-on-pull-request
+  namespace: rhbk-release-tenant
 spec:
   params:
-  - name: git-url
-    value: '{{source_url}}'
-  - name: revision
-    value: '{{revision}}'
-  - name: output-image
-    value: quay.io/redhat-user-workloads-stage/asergien-tenant/rhbk-fbc-cef35:on-pr-{{revision}}
-  - name: image-expires-after
-    value: 5d
-  - name: build-platforms
-    value:
-    - linux/x86_64
-  - name: dockerfile
-    value: Dockerfile
-  - name: path-context
-    value: catalog/v4.22
+    - name: git-url
+      value: '{{source_url}}'
+    - name: revision
+      value: '{{revision}}'
+    - name: output-image
+      value: quay.io/redhat-user-workloads/rhbk-release-tenant/rhbk-fbc-component-v4-22:on-pr-{{revision}}
+    - name: output-image-real
+      value: image-rbac-proxy.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com/redhat-user-workloads/rhbk-release-tenant/rhbk-fbc-component-v4-22:on-pr-{{revision}}
+    - name: image-expires-after
+      value: 14d
+    - name: path-context
+      value: catalog/v4.22
+    - name: dockerfile
+      value: catalog/v4.22/Dockerfile
   pipelineSpec:
     description: |
-      This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/end-to-end/building-olm/#building-the-file-based-catalog).
+      This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/advanced-how-tos/building-olm.adoc#building-the-file-based-catalog).
 
       _Uses `buildah` to create a container image. Its build-time tests are limited to verifying the included catalog and do not scan the image.
       This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-fbc-builder?tab=tags)_
+    finally:
+      - name: show-sbom
+        params:
+          - name: IMAGE_URL
+            value: $(tasks.build-image-index.results.IMAGE_URL)
+        taskRef:
+          params:
+            - name: name
+              value: show-sbom
+            - name: bundle
+              value: quay.io/konflux-ci/tekton-catalog/task-show-sbom:0.1@sha256:a7346ed61237db4f82ff782e0c9e8b30536e0e67b907ad600341a6d192e80012
+            - name: kind
+              value: task
+          resolver: bundles
+      - name: show-summary
+        params:
+          - name: pipelinerun-name
+            value: $(context.pipelineRun.name)
+          - name: git-url
+            value: $(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)
+          - name: image-url
+            value: $(params.output-image)
+          - name: build-task-status
+            value: $(tasks.build-image-index.status)
+        taskRef:
+          params:
+            - name: name
+              value: summary
+            - name: bundle
+              value: quay.io/konflux-ci/tekton-catalog/task-summary:0.2@sha256:a009e5892e0ef23f8c45fe98a96d6c56aff3bdc0343d994f30661e56ff901253
+            - name: kind
+              value: task
+          resolver: bundles
+        workspaces:
+          - name: workspace
+            workspace: workspace
     params:
-    - description: Source Repository URL
-      name: git-url
-      type: string
-    - default: ""
-      description: Revision of the Source Repository
-      name: revision
-      type: string
-    - description: Fully Qualified Output Image
-      name: output-image
-      type: string
-    - default: .
-      description: Path to the source code of an application's component from where
-        to build image.
-      name: path-context
-      type: string
-    - default: Dockerfile
-      description: Path to the Dockerfile inside the context specified by parameter
-        path-context
-      name: dockerfile
-      type: string
-    - default: "false"
-      description: Skip checks against built image
-      name: skip-checks
-      type: string
-    - default: "true"
-      description: Execute the build with network isolation
-      name: hermetic
-      type: string
-    - default: ""
-      description: Build dependencies to be prefetched
-      name: prefetch-input
-      type: string
-    - default: ""
-      description: Image tag expiration time, time values could be something like
-        1h, 2d, 3w for hours, days, and weeks, respectively.
-      name: image-expires-after
-      type: string
-    - default: "false"
-      description: Build a source image.
-      name: build-source-image
-      type: string
-    - default: "true"
-      description: Add built image into an OCI image index
-      name: build-image-index
-      type: string
-    - default: "false"
-      description: Enable cache proxy configuration
-      name: enable-cache-proxy
-    - default: "true"
-      description: Use the package registry proxy when prefetching dependencies
-      name: enable-package-registry-proxy
-    - default: .
-      description: Target directories in component's source code to scan with SAST
-        tools. Multiple values should be separated with commas.
-      name: sast-target-dirs
-      type: string
-    - default: []
-      description: Array of --build-arg values ("arg=value" strings) for buildah
-      name: build-args
-      type: array
-    - default: ""
-      description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
-      name: build-args-file
-      type: string
-    - default: ""
-      description: Sets the image created time and the SOURCE_DATE_EPOCH build argument.
-        On its own, it does not change file timestamps inside the layers (set rewrite-timestamp
-        to "true" for that). Leave empty to keep the actual build time.
-      name: source-date-epoch
-      type: string
-    - default: "false"
-      description: When "true", clamp file modification times in the image layers
-        to at most source-date-epoch. Does nothing unless source-date-epoch is set.
-      name: rewrite-timestamp
-      type: string
-    - default: "false"
-      description: When "true", omit the build history (history timestamps, layer
-        metadata, etc.) from the resulting image.
-      name: omit-history
-      type: string
-    - default:
-      - linux/x86_64
-      description: List of platforms to build the container images on. The available
-        set of values is determined by the configuration of the multi-platform-controller.
-      name: build-platforms
-      type: array
+      - description: Source Repository URL
+        name: git-url
+        type: string
+      - default: ""
+        description: Revision of the Source Repository
+        name: revision
+        type: string
+      - description: Fully Qualified Output Image
+        name: output-image
+        type: string
+      - default: .
+        description: Path to the source code of an application's component from where to build image.
+        name: path-context
+        type: string
+      - default: Dockerfile
+        description: Path to the Dockerfile inside the context specified by parameter path-context
+        name: dockerfile
+        type: string
+      - default: "false"
+        description: Skip checks against built image
+        name: skip-checks
+        type: string
+      - default: "true"
+        description: Execute the build with network isolation
+        name: hermetic
+        type: string
+      - default: ""
+        description: Build dependencies to be prefetched by Cachi2
+        name: prefetch-input
+        type: string
+      - default: ""
+        description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
+        name: image-expires-after
+      - default: "false"
+        description: Build a source image.
+        name: build-source-image
+        type: string
+      - default: "false"
+        description: Add built image into an OCI image index
+        name: build-image-index
+        type: string
+      - name: buildah-format
+        default: oci
+        type: string
+        description: The format for the resulting image's mediaType. Valid values are oci or docker.
+      - default: []
+        description: Array of --build-arg values ("arg=value" strings) for buildah
+        name: build-args
+        type: array
     results:
-    - description: ""
-      name: IMAGE_URL
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - description: ""
-      name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - description: ""
-      name: CHAINS-GIT_URL
-      value: $(tasks.clone-repository.results.url)
-    - description: ""
-      name: CHAINS-GIT_COMMIT
-      value: $(tasks.clone-repository.results.commit)
+      - description: ""
+        name: IMAGE_URL
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      - description: ""
+        name: IMAGE_DIGEST
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+      - description: ""
+        name: CHAINS-GIT_URL
+        value: $(tasks.clone-repository.results.url)
+      - description: ""
+        name: CHAINS-GIT_COMMIT
+        value: $(tasks.clone-repository.results.commit)
     tasks:
       - name: init
         taskRef:
@@ -175,27 +171,27 @@ spec:
             workspace: git-auth
       - name: fbc-inject-lifecycle
         params:
-        - name: DOCKERFILE
-          value: $(params.dockerfile)
-        - name: CONTEXT
-          value: $(params.path-context)
-        - name: BUILD_ARGS
-          value:
-          - $(params.build-args[*])
+          - name: DOCKERFILE
+            value: $(params.dockerfile)
+          - name: CONTEXT
+            value: $(params.path-context)
+          - name: BUILD_ARGS
+            value:
+              - $(params.build-args[*])
         runAfter:
-        - clone-repository
+          - clone-repository
         taskRef:
           params:
-          - name: url
-            value: https://github.com/asergienk/konflux-operator-tasks.git
-          - name: revision
-            value: add_fbc_inject_lifecycle
-          - name: pathInRepo
-            value: task/fbc-inject-lifecycle/0.1/fbc-inject-lifecycle.yaml
+            - name: url
+              value: https://github.com/asergienk/konflux-operator-tasks.git
+            - name: revision
+              value: add_fbc_inject_lifecycle
+            - name: pathInRepo
+              value: task/fbc-inject-lifecycle/0.1/fbc-inject-lifecycle.yaml
           resolver: git
         workspaces:
-        - name: workspace
-          workspace: workspace
+          - name: workspace
+            workspace: workspace
       - name: build-container
         params:
           - name: IMAGE
