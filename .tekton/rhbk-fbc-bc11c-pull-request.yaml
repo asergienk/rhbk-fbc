@@ -24,15 +24,14 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/rhbk-release-tenant/rhbk-fbc-component-v4-22:on-pr-{{revision}}
-  - name: output-image-real
-    value: image-rbac-proxy.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com/redhat-user-workloads/rhbk-release-tenant/rhbk-fbc-component-v4-22:on-pr-{{revision}}
-  - name: image-expires-after
-    value: 14d
+    value: quay.io/redhat-user-workloads-stage/asergien-tenant/rhbk-fbc-bc11c:{{revision}}
+  - name: build-platforms
+    value:
+    - linux/x86_64
+  - name: dockerfile
+    value: Dockerfile
   - name: path-context
     value: catalog/v4.22
-  - name: dockerfile
-    value: catalog/v4.22/Dockerfile
   pipelineSpec:
     description: |
       This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/advanced-how-tos/building-olm.adoc#building-the-file-based-catalog).
