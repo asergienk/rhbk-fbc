@@ -158,13 +158,36 @@ spec:
         - name: name
           value: git-clone-oci-ta
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.2.4@sha256:df3c42d78223f07b40a84dd29e5c8860d14777ffdf150ea08c738770f51216dc
+          value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:ae48e70fd4305bd86824ccf56072db6a5780dc873c885d8a683e4751e9b58369
         - name: kind
           value: task
         resolver: bundles
       workspaces:
       - name: basic-auth
         workspace: git-auth
+    - name: fbc-inject-lifecycle
+      params:
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).lifecycle
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      - name: CONTEXT
+        value: $(params.path-context)
+      - name: DOCKERFILE
+        value: $(params.dockerfile)
+      runAfter:
+      - clone-repository
+      taskRef:
+        params:
+        - name: name
+          value: fbc-inject-lifecycle-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-fbc-inject-lifecycle-oci-ta:0.1@sha256:a636970f2f7ff1c8156ad92e3c6bde96ce532a3195b24cc3ed4025d7d609e6eb
+        - name: kind
+          value: task
+        resolver: bundles
     - name: build-container
       params:
       - name: IMAGE
@@ -181,14 +204,16 @@ spec:
         value: $(tasks.clone-repository.results.commit)
       - name: BUILDAH_FORMAT
         value: $(params.buildah-format)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.fbc-inject-lifecycle.results.SOURCE_ARTIFACT)
       runAfter:
-      - clone-repository
+      - fbc-inject-lifecycle
       taskRef:
         params:
         - name: name
-          value: buildah
+          value: buildah-oci-ta
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.10@sha256:d58ca8db7a349c47baffd7ccdd44c108448e2339340952238fd8265248a3bb2d
+          value: quay.io/konflux-ci/tekton-catalog/task-buildah-oci-ta:0.10.5@sha256:5fcf620537b0dece56a9c9a8090ce7592a874da92cc2a5d398abdc2382eb8a3c
         - name: kind
           value: task
         resolver: bundles
@@ -220,14 +245,16 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.fbc-inject-lifecycle.results.SOURCE_ARTIFACT)
       runAfter:
       - build-image-index
       taskRef:
         params:
         - name: name
-          value: fbc-fips-check
+          value: fbc-fips-check-oci-ta
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-fbc-fips-check:0.1@sha256:8e995030aa8113e15e1d1d4f1628cb57b309d87e306b0aa6b9c5bca836520d59
+          value: quay.io/konflux-ci/tekton-catalog/task-fbc-fips-check-oci-ta:0.1@sha256:935adb61a5c9be0f619edc8838771ad3fe08cf17689094aeaaeac493af2a2115
         - name: kind
           value: task
         resolver: bundles
@@ -236,9 +263,6 @@ spec:
         operator: in
         values:
         - "false"
-      workspaces:
-      - name: workspace
-        workspace: workspace
     - name: deprecated-base-image-check
       params:
       - name: IMAGE_URL
