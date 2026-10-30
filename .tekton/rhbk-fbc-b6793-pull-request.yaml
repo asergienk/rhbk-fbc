@@ -250,7 +250,7 @@ spec:
           - name: BINARY_IMAGE_DIGEST
             value: $(tasks.build-container.results.IMAGE_DIGEST)
           - name: SOURCE_ARTIFACT
-            value: $(tasks.build-container.results.SOURCE_ARTIFACT)
+            value: $(tasks.fbc-inject-lifecycle.results.SOURCE_ARTIFACT)
         runAfter:
           - build-container
         taskRef:
